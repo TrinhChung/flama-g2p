@@ -22,4 +22,4 @@ For more details, please refer to:
 
 Please note that external third-party data, models, dictionaries, or libraries used by or integrated with Flama Audio are subject to their own respective licenses. They are not governed by the Flama G2P license. 
 
-For full details on third-party licenses (including VOICEVOX, CMUdict, Kokoro models, etc.), see [THIRD_PARTY_NOTICES.md](../../../THIRD_PARTY_NOTICES.md).
+For full details on third-party licenses (including VOICEVOX, CMUdict, Kokoro models, etc.), see [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
