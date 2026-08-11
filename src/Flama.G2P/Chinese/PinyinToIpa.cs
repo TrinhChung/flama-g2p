@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace Flama.Audio.Engine.Kokoro.G2P;
+namespace Flama.G2P.Chinese;
 
 public static class PinyinToIpa
 {
@@ -19,11 +19,11 @@ public static class PinyinToIpa
     {
         { "b", new[] { "p" } },
         { "c", new[] { "ʦʰ" } },
-        { "ch", new[] { "ʈʂʰ" } }, // \uAB67ʰ represents retroflex ʈʂʰ (using ʈʂʰ for Kokoro compatibility)
+        { "ch", new[] { "ʈʂʰ" } },
         { "d", new[] { "t" } },
         { "f", new[] { "f" } },
         { "g", new[] { "k" } },
-        { "h", new[] { "x" } }, // Hexgrad first choice is "x"
+        { "h", new[] { "x" } },
         { "j", new[] { "ʨ" } },
         { "k", new[] { "kʰ" } },
         { "l", new[] { "l" } },
@@ -31,13 +31,13 @@ public static class PinyinToIpa
         { "n", new[] { "n" } },
         { "p", new[] { "pʰ" } },
         { "q", new[] { "ʨʰ" } },
-        { "r", new[] { "ɻ" } }, // Hexgrad first choice is "ɻ"
+        { "r", new[] { "ɻ" } },
         { "s", new[] { "s" } },
         { "sh", new[] { "ʂ" } },
         { "t", new[] { "tʰ" } },
         { "x", new[] { "ɕ" } },
         { "z", new[] { "ʦ" } },
-        { "zh", new[] { "ʈʂ" } } // \uAB67 maps to ʈʂ
+        { "zh", new[] { "ʈʂ" } }
     };
 
     private static readonly Dictionary<string, string[]> SyllabicConsonantMappings = new(StringComparer.OrdinalIgnoreCase)
@@ -53,7 +53,7 @@ public static class PinyinToIpa
     {
         { "io", new[] { "j", "ɔ0" } },
         { "ê", new[] { "ɛ0" } },
-        { "er", new[] { "ɚ0" } }, // Hexgrad first choice is "ɚ0"
+        { "er", new[] { "ɚ0" } },
         { "o", new[] { "ɔ0" } }
     };
 
@@ -98,12 +98,12 @@ public static class PinyinToIpa
 
     private static readonly Dictionary<string, string[]> FinalMappingAfterZhChShR = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "i", new[] { "ɻ̩0" } } // \u027b\u03290 retroflex syllabic consonant (using ɻ̩0 for compatibility)
+        { "i", new[] { "ɻ̩0" } }
     };
 
     private static readonly Dictionary<string, string[]> FinalMappingAfterZCS = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "i", new[] { "ɹ̩0" } } // \u0279\u03290 dental syllabic consonant (using ɹ̩0 for compatibility)
+        { "i", new[] { "ɹ̩0" } }
     };
 
     private static readonly Dictionary<int, string> ToneMapping = new()
@@ -119,22 +119,27 @@ public static class PinyinToIpa
     {
         if (string.IsNullOrWhiteSpace(pinyin)) return string.Empty;
 
-        // 1. Extract tone (last digit 1-5)
+        // 1. Normalize orthographic abbreviations (ui->uei, iu->iou, un->uen)
+        string normalized = NormalizePinyinOrthography(pinyin);
+
+        // 2. Normalize j/q/x + u -> j/q/x + ü rules
+        normalized = NormalizeJqxu(normalized);
+
+        // 3. Extract tone (last digit 1-5)
         int tone = 5;
-        string normalPinyin = pinyin;
-        if (pinyin.Length > 1 && char.IsDigit(pinyin[^1]))
+        string normalPinyin = normalized;
+        if (normalized.Length > 1 && char.IsDigit(normalized[^1]))
         {
-            if (int.TryParse(pinyin[^1].ToString(), out int parsedTone))
+            if (int.TryParse(normalized[^1].ToString(), out int parsedTone))
             {
                 tone = parsedTone;
-                normalPinyin = pinyin[..^1];
+                normalPinyin = normalized[..^1];
             }
         }
 
-        // Adjust tone to bounds just in case
         if (!ToneMapping.ContainsKey(tone)) tone = 5;
 
-        // 2. Check Syllabic Consonants and Interjections
+        // 4. Check Syllabic Consonants and Interjections
         if (SyllabicConsonantMappings.TryGetValue(normalPinyin, out var syllabic))
         {
             return ApplyTone(syllabic, tone);
@@ -145,10 +150,10 @@ public static class PinyinToIpa
             return ApplyTone(interj, tone);
         }
 
-        // 3. Split Initial & Final
+        // 5. Split Initial & Final
         var (initial, final) = SplitInitialFinal(normalPinyin);
 
-        // 4. Map Initial to IPA
+        // 6. Map Initial to IPA
         string initialIpa = "";
         if (initial != null)
         {
@@ -158,7 +163,7 @@ public static class PinyinToIpa
             }
         }
 
-        // 5. Map Final to IPA
+        // 7. Map Final to IPA
         string finalIpa = "";
         if (final != null)
         {
@@ -184,12 +189,75 @@ public static class PinyinToIpa
             }
             else
             {
-                // Fallback to verbatim
                 finalIpa = final;
             }
         }
 
         return initialIpa + finalIpa;
+    }
+
+    /// <summary>
+    /// Normalizes Binh Am written abbreviations: ui -> uei, iu -> iou, un -> uen (under strict initial contexts).
+    /// </summary>
+    public static string NormalizePinyinOrthography(string pinyin)
+    {
+        if (string.IsNullOrWhiteSpace(pinyin)) return pinyin;
+
+        string lower = pinyin.ToLowerInvariant();
+        string tone = "";
+        string normal = lower;
+        if (lower.Length > 1 && char.IsDigit(lower[^1]))
+        {
+            tone = lower[^1].ToString();
+            normal = lower[..^1];
+        }
+
+        if (normal.EndsWith("ui"))
+        {
+            normal = normal[..^2] + "uei";
+        }
+        else if (normal.EndsWith("iu"))
+        {
+            normal = normal[..^2] + "iou";
+        }
+        else if (normal.EndsWith("un"))
+        {
+            // Only convert to uen if it doesn't start with j/q/x/y which represent 'ün'
+            bool isJqxy = normal.StartsWith("j") || normal.StartsWith("q") || normal.StartsWith("x") || normal.StartsWith("y");
+            if (!isJqxy)
+            {
+                normal = normal[..^2] + "uen";
+            }
+        }
+
+        return normal + tone;
+    }
+
+    /// <summary>
+    /// Normalizes the j/q/x + u -> j/q/x + ü orthographic rule.
+    /// </summary>
+    public static string NormalizeJqxu(string pinyin)
+    {
+        if (string.IsNullOrWhiteSpace(pinyin)) return pinyin;
+
+        string lower = pinyin.ToLowerInvariant();
+        string tone = "";
+        string normal = lower;
+        if (lower.Length > 1 && char.IsDigit(lower[^1]))
+        {
+            tone = lower[^1].ToString();
+            normal = lower[..^1];
+        }
+
+        if (normal.StartsWith("j") || normal.StartsWith("q") || normal.StartsWith("x"))
+        {
+            if (normal.Length >= 2 && normal[1] == 'u')
+            {
+                normal = normal[0] + "ü" + normal[2..];
+            }
+        }
+
+        return normal + tone;
     }
 
     private static string ApplyTone(string[] phonemes, int tone)
@@ -200,7 +268,6 @@ public static class PinyinToIpa
 
     private static (string? Initial, string Final) SplitInitialFinal(string pinyin)
     {
-        // 1. Double letter initials
         if (pinyin.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ||
             pinyin.StartsWith("ch", StringComparison.OrdinalIgnoreCase) ||
             pinyin.StartsWith("sh", StringComparison.OrdinalIgnoreCase))
@@ -208,7 +275,6 @@ public static class PinyinToIpa
             return (pinyin[..2], pinyin[2..]);
         }
 
-        // 2. Single letter initials
         string[] strictInitials = { "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h", "j", "q", "x", "r", "z", "c", "s" };
         foreach (var init in strictInitials)
         {
@@ -218,7 +284,6 @@ public static class PinyinToIpa
             }
         }
 
-        // 3. Zero-initial orthographic rules for y/w
         if (pinyin.StartsWith("y", StringComparison.OrdinalIgnoreCase))
         {
             return pinyin.ToLowerInvariant() switch
@@ -238,7 +303,7 @@ public static class PinyinToIpa
                 "yue" => (null, "üe"),
                 "yuan" => (null, "üan"),
                 "yun" => (null, "ün"),
-                _ => (null, pinyin[1..]) // fallback
+                _ => (null, pinyin[1..])
             };
         }
 
@@ -254,11 +319,10 @@ public static class PinyinToIpa
                 "wang" => (null, "uang"),
                 "weng" => (null, "ueng"),
                 "wo" => (null, "uo"),
-                _ => (null, pinyin[1..]) // fallback
+                _ => (null, pinyin[1..])
             };
         }
 
-        // 4. Syllable starting directly with vowel
         return (null, pinyin);
     }
 }

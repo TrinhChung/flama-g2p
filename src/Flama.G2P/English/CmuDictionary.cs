@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
-namespace Flama.Audio.Engine.Kokoro.G2P;
+namespace Flama.G2P.English;
 
 public class CmuDictionary
 {

@@ -10,18 +10,22 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
+using Flama.G2P;
+using Flama.G2P.English;
 
-namespace Flama.Audio.Engine.Kokoro.G2P;
+namespace Flama.G2P.Chinese;
 
 public class ChineseG2P : IG2P
 {
     private readonly PinyinDictionary _pinyinDict;
+    private readonly PhrasePinyinDictionary _phraseDict;
     private readonly IG2P _englishG2p;
 
-    public ChineseG2P(IG2P englishG2p)
+    public ChineseG2P(IG2P? englishG2p = null)
     {
         _pinyinDict = new PinyinDictionary();
-        _englishG2p = englishG2p;
+        _phraseDict = new PhrasePinyinDictionary();
+        _englishG2p = englishG2p ?? new EnglishG2P();
     }
 
     public string Phonemize(string text)
@@ -35,7 +39,6 @@ public class ChineseG2P : IG2P
         text = MapPunctuation(text);
 
         // 3. Segment and phonemize
-        // Tách chữ Hán (CJK Unified Ideographs) vs các ký tự khác (Latinh, khoảng trắng, dấu câu)
         var matches = Regex.Matches(text, @"[\u4E00-\u9FFF]+|[^\u4E00-\u9FFF]+");
         var result = new StringBuilder();
 
@@ -46,12 +49,10 @@ public class ChineseG2P : IG2P
 
             if (Regex.IsMatch(segment, @"^[\u4E00-\u9FFF]+$"))
             {
-                // Chinese character segment
                 result.Append(PhonemizeChineseSegment(segment));
             }
             else
             {
-                // Non-Chinese segment (may contain English words, punctuation, etc.)
                 result.Append(PhonemizeNonChineseSegment(segment));
             }
         }
@@ -61,69 +62,20 @@ public class ChineseG2P : IG2P
 
     private string PhonemizeChineseSegment(string segment)
     {
-        var pinyins = new List<string>();
+        // 1. Segment using longest phrase dictionary matching, falling back to single characters
+        List<string> pinyins = _phraseDict.SegmentAndGetPinyin(segment, _pinyinDict);
 
-        // 1. Hanzi to Pinyin lookup
-        foreach (char c in segment)
-        {
-            string? py = _pinyinDict.GetPinyin(c);
-            if (py != null)
-            {
-                pinyins.Add(py);
-            }
-            else
-            {
-                // If not found in pinyin dict, keep character to let it fall through or be skipped
-                pinyins.Add(c.ToString());
-            }
-        }
+        // 2. Apply adjacent third-tone sandhi rules
+        ApplyThirdToneSandhi(pinyins);
 
-        // 2. Apply Tone Sandhi (3rd tone modification)
-        for (int i = 0; i < pinyins.Count - 1; i++)
-        {
-            if (pinyins[i].EndsWith("3") && pinyins[i + 1].EndsWith("3"))
-            {
-                pinyins[i] = pinyins[i][..^1] + "2";
-            }
-        }
-
-        // 3. Apply Tone Sandhi for 'yi' and 'bu'
-        for (int i = 0; i < pinyins.Count - 1; i++)
-        {
-            string current = pinyins[i];
-            string next = pinyins[i + 1];
-
-            if (next.Length > 1 && char.IsDigit(next[^1]))
-            {
-                char nextTone = next[^1];
-
-                if (current.StartsWith("bu", StringComparison.OrdinalIgnoreCase) && current.EndsWith("4"))
-                {
-                    if (nextTone == '4')
-                    {
-                        pinyins[i] = current[..^1] + "2";
-                    }
-                }
-                else if (current.StartsWith("yi", StringComparison.OrdinalIgnoreCase) && current.EndsWith("1"))
-                {
-                    if (nextTone == '4')
-                    {
-                        pinyins[i] = current[..^1] + "2";
-                    }
-                    else if (nextTone == '1' || nextTone == '2' || nextTone == '3')
-                    {
-                        pinyins[i] = current[..^1] + "4";
-                    }
-                }
-            }
-        }
+        // 3. Apply exact-match tone sandhi for 'yi' and 'bu'
+        ApplyYiBuSandhi(pinyins);
 
         // 4. Convert Pinyin to IPA and apply retone arrows
         var ipaParts = new List<string>();
         foreach (string py in pinyins)
         {
-            // If it's a raw non-pinyin char, skip or copy
-            if (py.Length > 0 && !char.IsLetter(py[0]))
+            if (py.Length > 0 && !char.IsLetter(py[0]) && py[0] != 'ü')
             {
                 continue;
             }
@@ -139,10 +91,61 @@ public class ChineseG2P : IG2P
         return " " + string.Join(" ", ipaParts) + " ";
     }
 
+    /// <summary>
+    /// Applies third-tone sandhi: when two third-tone syllables are adjacent,
+    /// the first changes to a second tone.
+    /// Note: This is a local adjacent-pair sandhi rule. It does not perform full prosodic word/phrase
+    /// segmentation, so complex multi-word sequences may sometimes differ from actual spoken rhythm.
+    /// </summary>
+    private static void ApplyThirdToneSandhi(List<string> pinyins)
+    {
+        for (int i = 0; i < pinyins.Count - 1; i++)
+        {
+            if (pinyins[i].EndsWith("3") && pinyins[i + 1].EndsWith("3"))
+            {
+                pinyins[i] = pinyins[i][..^1] + "2";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies tone sandhi for "bu4" and "yi1" depending on the tone of the subsequent syllable.
+    /// </summary>
+    private static void ApplyYiBuSandhi(List<string> pinyins)
+    {
+        for (int i = 0; i < pinyins.Count - 1; i++)
+        {
+            string current = pinyins[i];
+            string next = pinyins[i + 1];
+
+            if (next.Length > 1 && char.IsDigit(next[^1]))
+            {
+                char nextTone = next[^1];
+
+                if (current == "bu4")
+                {
+                    if (nextTone == '4')
+                    {
+                        pinyins[i] = "bu2";
+                    }
+                }
+                else if (current == "yi1")
+                {
+                    if (nextTone == '4')
+                    {
+                        pinyins[i] = "yi2";
+                    }
+                    else if (nextTone == '1' || nextTone == '2' || nextTone == '3')
+                    {
+                        pinyins[i] = "yi4";
+                    }
+                }
+            }
+        }
+    }
+
     private string PhonemizeNonChineseSegment(string segment)
     {
-        // Segment could contain English words, punctuation, or mixed whitespace.
-        // We find all words of Latin characters and dispatch them to the English G2P.
         var tokens = Regex.Matches(segment, @"[A-Za-z']+|[^\sA-Za-z']+|\s+");
         var sb = new StringBuilder();
 
@@ -157,13 +160,11 @@ public class ChineseG2P : IG2P
 
             if (Regex.IsMatch(token, @"^[A-Za-z']+$"))
             {
-                // Dispatch English word to English G2P
                 string enIpa = _englishG2p.Phonemize(token);
                 sb.Append(enIpa);
             }
             else
             {
-                // Punctuation or other characters
                 sb.Append(token);
             }
         }
@@ -178,7 +179,6 @@ public class ChineseG2P : IG2P
         p = p.Replace("˥˩", "↘");  // fourth tone
         p = p.Replace("˥", "→");   // first tone
         
-        // Map syllabic consonants to ɨ according to Hexgrad misaki
         p = p.Replace("ɻ\u0329", "ɨ").Replace("ɹ\u0329", "ɨ");
         p = p.Replace("ɻ̩", "ɨ").Replace("ɹ̩", "ɨ");
         p = p.Replace("m0", "m").Replace("n0", "n").Replace("ŋ0", "ŋ");
@@ -201,7 +201,7 @@ public class ChineseG2P : IG2P
         return text.Trim();
     }
 
-    private static string NormalizeNumbers(string text)
+    public static string NormalizeNumbers(string text)
     {
         return Regex.Replace(text, @"\d+", m =>
         {
@@ -214,45 +214,96 @@ public class ChineseG2P : IG2P
     }
 
     private static readonly string[] ChineseDigits = { "零", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
-    private static readonly string[] ChineseUnits = { "", "十", "百", "千", "万", "十万", "百万", "千万", "亿" };
+    private static readonly string[] ChineseUnits = { "", "十", "百", "千" };
+    private static readonly string[] ChineseBigUnits = { "", "万", "亿", "万亿" };
 
-    private static string IntegerToChinese(long number)
+    public static string IntegerToChinese(long number)
     {
         if (number == 0) return ChineseDigits[0];
         if (number < 0) return "负" + IntegerToChinese(-number);
 
-        var result = new StringBuilder();
-        int unitIndex = 0;
-        bool lastWasZero = false;
+        string result = "";
+        int bigUnitIndex = 0;
+        bool needZero = false;
 
-        while (number > 0)
+        long temp = number;
+        while (temp > 0)
         {
-            long digit = number % 10;
+            int section = (int)(temp % 10000);
+            if (section > 0)
+            {
+                string sectionStr = SectionToChinese(section);
+                if (needZero)
+                {
+                    result = ChineseDigits[0] + result;
+                    needZero = false;
+                }
+                string unit = bigUnitIndex < ChineseBigUnits.Length ? ChineseBigUnits[bigUnitIndex] : "";
+                result = sectionStr + unit + result;
+            }
+            else
+            {
+                if (result.Length > 0)
+                {
+                    needZero = true;
+                }
+            }
+
+            if (temp >= 10000 && section < 1000 && section > 0)
+            {
+                needZero = true;
+            }
+
+            temp /= 10000;
+            bigUnitIndex++;
+        }
+
+        if (result.StartsWith("一十"))
+        {
+            result = result[1..];
+        }
+
+        result = Regex.Replace(result, "零+", "零");
+        if (result.EndsWith("零") && result.Length > 1)
+        {
+            result = result[..^1];
+        }
+
+        return result;
+    }
+
+    private static string SectionToChinese(int section)
+    {
+        string result = "";
+        bool lastWasZero = false;
+        int unitIndex = 0;
+        int temp = section;
+
+        while (temp > 0)
+        {
+            int digit = temp % 10;
             if (digit > 0)
             {
                 if (lastWasZero)
                 {
-                    result.Insert(0, ChineseDigits[0]);
+                    result = ChineseDigits[0] + result;
                     lastWasZero = false;
                 }
                 string unit = unitIndex < ChineseUnits.Length ? ChineseUnits[unitIndex] : "";
-                result.Insert(0, ChineseDigits[digit] + unit);
+                result = ChineseDigits[digit] + unit + result;
             }
             else
             {
-                lastWasZero = true;
+                if (result.Length > 0)
+                {
+                    lastWasZero = true;
+                }
             }
-
-            number /= 10;
+            temp /= 10;
             unitIndex++;
         }
-
-        string s = result.ToString();
-        if (s.StartsWith("一十"))
-        {
-            s = s[1..];
-        }
-        return s;
+        
+        return result;
     }
 
     private static string CleanOutput(string input)

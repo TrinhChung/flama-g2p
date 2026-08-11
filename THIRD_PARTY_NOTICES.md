@@ -1,39 +1,10 @@
-# Third-Party Notices
+# Third-Party Notices - Flama G2P
 
-This file contains licensing and source notices for third-party software, libraries, models, and data resources used by or integrated with Flama Audio.
-
----
-
-## 1. Kokoro Model & Weights
-- **Source:** Hexgrad Kokoro-82M (https://huggingface.co/hexgrad/Kokoro-82M)
-- **Artifact Source:** Built ONNX model weights and voice binaries downloaded from thewh1teagle/kokoro-onnx releases (https://github.com/thewh1teagle/kokoro-onnx)
-- **Files:** `kokoro-v1.0.int8.onnx`, `voices-v1.0.bin`, `config.json`
-- **License:** Apache License 2.0 (Hexgrad Kokoro-82M weights & configuration).
-- **Notice:**
-  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at:
-  http://www.apache.org/licenses/LICENSE-2.0
+This file contains licensing and source notices for third-party data and dictionaries used by Flama G2P.
 
 ---
 
-## 2. kokoro-onnx (C# Tooling context)
-- **Source:** thewh1teagle/kokoro-onnx (https://github.com/thewh1teagle/kokoro-onnx)
-- **License:** MIT License
-- **Notice:**
-  Copyright (c) 2024 thewh1teagle
-  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software.
-
----
-
-## 3. Microsoft.ML.OnnxRuntime
-- **Source:** Microsoft ONNX Runtime (https://github.com/microsoft/onnxruntime)
-- **License:** MIT License
-- **Notice:**
-  Copyright (c) Microsoft Corporation. All rights reserved.
-  Licensed under the MIT License.
-
----
-
-## 4. CMUdict (Carnegie Mellon Pronouncing Dictionary)
+## 1. CMUdict (Carnegie Mellon Pronouncing Dictionary)
 - **Source:** cmusphinx/cmudict (https://github.com/cmusphinx/cmudict)
 - **License:** Permissive BSD-style License
 - **Notice:**
@@ -48,19 +19,8 @@ This file contains licensing and source notices for third-party software, librar
 
 ---
 
-## 5. VOICEVOX
-- **Source:** VOICEVOX (https://voicevox.hiroshiba.jp/)
-- **License/Terms:** 
-  - The VOICEVOX Engine source code is licensed under the LGPL-3.0 License / Alternative Commercial License (https://github.com/VOICEVOX/voicevox_engine).
-  - The VOICEVOX application and generated voice audio are subject to the official VOICEVOX Terms of Use.
-  - Individual voice libraries/characters (e.g., Zundamon, Shikitsuren, etc.) have their own specific terms of use that must be complied with.
-- **Notice:**
-  Flama Audio does not bundle or claim ownership of VOICEVOX. VOICEVOX Engine and VOICEVOX applications are downloaded, hosted, and run separately by the user.
-
----
-
-## 6. pinyin_dict.txt
-- **Path:** `flama-audio/src/Flama.Audio.Engine.Kokoro/G2P/pinyin_dict.txt`
+## 2. pinyin_dict.txt
+- **Path:** `src/Flama.G2P/Chinese/pinyin_dict.txt`
 - **Source:** Generated during G2P development using the Python `pypinyin` package (https://github.com/mozillazg/python-pinyin).
 - **Status:** **`License/source requires verification before public distribution.`** (RELEASE BLOCKER)
 - **Recommendation:** 

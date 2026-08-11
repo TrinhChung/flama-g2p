@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C8F52BC5-E911-4DB6-AB9E-50300A270BD5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flama.G2P", "src\Flama.G2P\Flama.G2P.csproj", "{B1166D79-1AC8-49A6-A90B-F65DDA482CB4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D703D4F9-5634-49E3-80E9-BE96A2C578B5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flama.G2P.Tests", "tests\Flama.G2P.Tests\Flama.G2P.Tests.csproj", "{C4FDA3F0-5CA6-463A-8221-BCAE9610B4DC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B1166D79-1AC8-49A6-A90B-F65DDA482CB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1166D79-1AC8-49A6-A90B-F65DDA482CB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1166D79-1AC8-49A6-A90B-F65DDA482CB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1166D79-1AC8-49A6-A90B-F65DDA482CB4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4FDA3F0-5CA6-463A-8221-BCAE9610B4DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4FDA3F0-5CA6-463A-8221-BCAE9610B4DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4FDA3F0-5CA6-463A-8221-BCAE9610B4DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4FDA3F0-5CA6-463A-8221-BCAE9610B4DC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B1166D79-1AC8-49A6-A90B-F65DDA482CB4} = {C8F52BC5-E911-4DB6-AB9E-50300A270BD5}
+		{C4FDA3F0-5CA6-463A-8221-BCAE9610B4DC} = {D703D4F9-5634-49E3-80E9-BE96A2C578B5}
+	EndGlobalSection
+EndGlobal

@@ -6,7 +6,7 @@
 // Commercial use requires a separate license from Flama.
 // See LICENSE and COMMERCIAL_LICENSE.md.
 
-namespace Flama.Audio.Engine.Kokoro.G2P;
+namespace Flama.G2P;
 
 public interface IG2P
 {

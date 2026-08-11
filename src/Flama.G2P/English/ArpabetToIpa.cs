@@ -10,7 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Flama.Audio.Engine.Kokoro.G2P;
+namespace Flama.G2P.English;
 
 public static class ArpabetToIpa
 {

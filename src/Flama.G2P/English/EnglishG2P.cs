@@ -7,18 +7,29 @@
 // See LICENSE and COMMERCIAL_LICENSE.md.
 
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
+using Flama.G2P;
 
-namespace Flama.Audio.Engine.Kokoro.G2P;
+namespace Flama.G2P.English;
+
+public enum OovStrategy
+{
+    SimpleRules,    // Convert letter by letter using rule-based heuristics
+    ReturnOriginal, // Return the original word verbatim
+    Throw           // Throw an exception when a word is not found
+}
 
 public class EnglishG2P : IG2P
 {
     private readonly CmuDictionary _dictionary;
+    private readonly OovStrategy _oovStrategy;
 
-    public EnglishG2P(CmuDictionary? dictionary = null)
+    public EnglishG2P(CmuDictionary? dictionary = null, OovStrategy oovStrategy = OovStrategy.ReturnOriginal)
     {
         _dictionary = dictionary ?? new CmuDictionary();
+        _oovStrategy = oovStrategy;
     }
 
     public string Phonemize(string text)
@@ -48,8 +59,20 @@ public class EnglishG2P : IG2P
                 }
                 else
                 {
-                    // OOV fallback: convert letter by letter
-                    sb.Append(ConvertOovLetters(token));
+                    switch (_oovStrategy)
+                    {
+                        case OovStrategy.SimpleRules:
+                            sb.Append(ConvertOovLetters(token));
+                            break;
+                        case OovStrategy.ReturnOriginal:
+                            sb.Append(token);
+                            break;
+                        case OovStrategy.Throw:
+                            throw new KeyNotFoundException($"The word '{token}' was not found in the CMU dictionary.");
+                        default:
+                            sb.Append(token);
+                            break;
+                    }
                 }
             }
             else
@@ -62,6 +85,10 @@ public class EnglishG2P : IG2P
         return CleanPhonemeOutput(sb.ToString());
     }
 
+    /// <summary>
+    /// Fallback method to convert letter-by-letter to IPA using basic digraph and letter mapping.
+    /// This is a heuristic fallback and is not linguistically accurate for all English words.
+    /// </summary>
     private static string ConvertOovLetters(string word)
     {
         var sb = new StringBuilder();

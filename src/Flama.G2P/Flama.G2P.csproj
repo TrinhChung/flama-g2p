@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>Flama.G2P</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Trinh Chung</Authors>
+    <Company>Flama Team</Company>
+    <Description>Grapheme-to-Phoneme (G2P) conversion library for English and Chinese, designed for neural TTS pipelines.</Description>
+    <RepositoryUrl>https://github.com/TrinhChung/flama-g2p</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/TrinhChung/flama-g2p</PackageProjectUrl>
+    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Chinese\pinyin_dict.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+    <None Include="..\..\COMMERCIAL_LICENSE.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\THIRD_PARTY_NOTICES.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
