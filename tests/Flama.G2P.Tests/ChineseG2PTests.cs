@@ -117,9 +117,9 @@ public class ChineseG2PTests
         // shi2 -> ʂɨ↗, hou5 -> xou
         Assert.Contains("ʂɨ↗xou", shihou);
 
-        // "得不到" (de5 bu5 dao4) -> potential complement negative
+        // "得不到" (de2 bu5 dao4) -> potential complement negative ("bu" has neutral tone)
         string debudao = g2p.Phonemize("得不到");
-        Assert.Contains("tɤputau↘", debudao);
+        Assert.Contains("tɤ↗putau↘", debudao);
     }
 
     [Fact]
