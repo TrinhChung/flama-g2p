@@ -36,13 +36,19 @@ public class EnglishG2P : IG2P
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
-        // Tokenize text into words and punctuation
-        var tokens = Regex.Matches(text, @"[A-Za-z']+|[^\sA-Za-z']+|\s+");
+        // 1. Text normalization: numbers, currencies, ordinals, decimals, years, symbols
+        text = EnglishTextNormalizer.Normalize(text);
+
+        // 2. Tokenize text into words, punctuation, and whitespace
+        var matches = Regex.Matches(text, @"[A-Za-z']+|[^\sA-Za-z']+|\s+");
+        var tokens = new List<string>(matches.Count);
+        foreach (Match m in matches) tokens.Add(m.Value);
+
         var sb = new StringBuilder();
 
-        foreach (Match match in tokens)
+        for (int i = 0; i < tokens.Count; i++)
         {
-            string token = match.Value;
+            string token = tokens[i];
 
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -52,9 +58,25 @@ public class EnglishG2P : IG2P
 
             if (Regex.IsMatch(token, @"^[A-Za-z']+$"))
             {
-                if (_dictionary.TryLookup(token, out string[] arpabet))
+                // Contextual rules for function words "the" and "to"
+                string lower = token.ToLowerInvariant();
+                if (lower == "the" || lower == "to")
                 {
-                    string ipa = ArpabetToIpa.ConvertWord(arpabet);
+                    bool nextVowel = LookaheadNextWordIsVowel(tokens, i + 1);
+                    if (lower == "the")
+                    {
+                        sb.Append(nextVowel ? "ði" : "ðə");
+                        continue;
+                    }
+                    if (lower == "to")
+                    {
+                        sb.Append(nextVowel ? "tʊ" : "tə");
+                        continue;
+                    }
+                }
+
+                if (TryLookupWord(token, out string ipa))
+                {
                     sb.Append(ipa);
                 }
                 else
@@ -77,12 +99,245 @@ public class EnglishG2P : IG2P
             }
             else
             {
-                // Punctuation (preserve . , ! ? ; : etc.)
+                // Punctuation (preserve . , ! ? ; : — etc.)
                 sb.Append(token);
             }
         }
 
         return CleanPhonemeOutput(sb.ToString());
+    }
+
+    public bool TryLookupWord(string word, out string ipa)
+    {
+        if (_dictionary.TryLookup(word, out string[] arpabet))
+        {
+            ipa = ArpabetToIpa.ConvertWord(arpabet);
+            return true;
+        }
+
+        // Try morphological stemming (-s, -ed, -ing)
+        if (TryStem(word, out ipa))
+        {
+            return true;
+        }
+
+        // Try all-caps acronym (e.g. USA, AI, FBI, CIA, VIP)
+        if (word.Length >= 2 && word.Length <= 5 && word == word.ToUpperInvariant() && Regex.IsMatch(word, @"^[A-Z]+$"))
+        {
+            ipa = ConvertAcronym(word);
+            return true;
+        }
+
+        ipa = string.Empty;
+        return false;
+    }
+
+    private bool LookaheadNextWordIsVowel(List<string> tokens, int startIndex)
+    {
+        for (int j = startIndex; j < tokens.Count; j++)
+        {
+            string next = tokens[j];
+            if (string.IsNullOrWhiteSpace(next) || !Regex.IsMatch(next, @"^[A-Za-z']+$"))
+            {
+                continue;
+            }
+
+            if (TryLookupWord(next, out string nextIpa))
+            {
+                return StartsWithVowelSound(nextIpa);
+            }
+
+            char firstChar = char.ToLowerInvariant(next[0]);
+            return firstChar is 'a' or 'e' or 'i' or 'o' or 'u';
+        }
+
+        return false;
+    }
+
+    private static readonly HashSet<char> VowelChars = new()
+    {
+        'æ', 'ɑ', 'ɔ', 'ɛ', 'ɜ', 'ɪ', 'ʊ', 'ʌ', 'i', 'u', 'ə', 'A', 'I', 'O', 'W', 'Y', 'ᵻ'
+    };
+
+    private static bool StartsWithVowelSound(string ipa)
+    {
+        if (string.IsNullOrEmpty(ipa)) return false;
+        foreach (char c in ipa)
+        {
+            if (c == 'ˈ' || c == 'ˌ') continue;
+            return VowelChars.Contains(c);
+        }
+        return false;
+    }
+
+    private bool TryStem(string word, out string ipa)
+    {
+        ipa = string.Empty;
+        string lower = word.ToLowerInvariant();
+
+        // 1. Stem -s, -es, -ies, 's
+        if (lower.EndsWith("'s") && lower.Length > 2)
+        {
+            string stem = lower[..^2];
+            if (_dictionary.TryLookup(stem, out string[] arpa))
+            {
+                ipa = ApplySuffixS(ArpabetToIpa.ConvertWord(arpa));
+                return true;
+            }
+        }
+        if (lower.EndsWith("ies") && lower.Length > 4)
+        {
+            string stem = lower[..^3] + "y";
+            if (_dictionary.TryLookup(stem, out string[] arpa))
+            {
+                ipa = ApplySuffixS(ArpabetToIpa.ConvertWord(arpa));
+                return true;
+            }
+        }
+        if (lower.EndsWith("es") && lower.Length > 4 && !lower.EndsWith("ses") && !lower.EndsWith("zes"))
+        {
+            string stem = lower[..^2];
+            if (_dictionary.TryLookup(stem, out string[] arpa))
+            {
+                ipa = ApplySuffixS(ArpabetToIpa.ConvertWord(arpa));
+                return true;
+            }
+        }
+        if (lower.EndsWith("s") && lower.Length > 2 && !lower.EndsWith("ss"))
+        {
+            string stem = lower[..^1];
+            if (_dictionary.TryLookup(stem, out string[] arpa))
+            {
+                ipa = ApplySuffixS(ArpabetToIpa.ConvertWord(arpa));
+                return true;
+            }
+        }
+
+        // 2. Stem -ed
+        if (lower.EndsWith("ed") && lower.Length > 4)
+        {
+            string stem1 = lower[..^2];
+            if (_dictionary.TryLookup(stem1, out string[] arpa1))
+            {
+                ipa = ApplySuffixEd(ArpabetToIpa.ConvertWord(arpa1));
+                return true;
+            }
+
+            string stem2 = lower[..^1];
+            if (_dictionary.TryLookup(stem2, out string[] arpa2))
+            {
+                ipa = ApplySuffixEd(ArpabetToIpa.ConvertWord(arpa2));
+                return true;
+            }
+
+            if (lower.Length > 5 && lower[^3] == lower[^4])
+            {
+                string stem3 = lower[..^3];
+                if (_dictionary.TryLookup(stem3, out string[] arpa3))
+                {
+                    ipa = ApplySuffixEd(ArpabetToIpa.ConvertWord(arpa3));
+                    return true;
+                }
+            }
+        }
+
+        // 3. Stem -ing
+        if (lower.EndsWith("ing") && lower.Length > 4)
+        {
+            string stem1 = lower[..^3];
+            if (_dictionary.TryLookup(stem1, out string[] arpa1))
+            {
+                ipa = ArpabetToIpa.ConvertWord(arpa1) + "ɪŋ";
+                return true;
+            }
+
+            string stem2 = lower[..^3] + "e";
+            if (_dictionary.TryLookup(stem2, out string[] arpa2))
+            {
+                ipa = ArpabetToIpa.ConvertWord(arpa2) + "ɪŋ";
+                return true;
+            }
+
+            if (lower.Length > 5 && lower[^4] == lower[^5])
+            {
+                string stem3 = lower[..^4];
+                if (_dictionary.TryLookup(stem3, out string[] arpa3))
+                {
+                    ipa = ArpabetToIpa.ConvertWord(arpa3) + "ɪŋ";
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string ApplySuffixS(string stemIpa)
+    {
+        if (string.IsNullOrEmpty(stemIpa)) return "s";
+
+        char last = stemIpa[^1];
+
+        // Sibilants: s, z, ʃ, ʒ, ʧ, ʤ -> ᵻz
+        if (last is 's' or 'z' or 'ʃ' or 'ʒ' or 'ʧ' or 'ʤ')
+        {
+            return stemIpa + "ᵻz";
+        }
+
+        // Voiceless consonants: p, t, k, f, θ -> s
+        if (last is 'p' or 't' or 'k' or 'f' or 'θ')
+        {
+            return stemIpa + "s";
+        }
+
+        // Voiced consonants and vowels -> z
+        return stemIpa + "z";
+    }
+
+    private static string ApplySuffixEd(string stemIpa)
+    {
+        if (string.IsNullOrEmpty(stemIpa)) return "d";
+
+        char last = stemIpa[^1];
+
+        // t or d -> ᵻd
+        if (last is 't' or 'd')
+        {
+            return stemIpa + "ᵻd";
+        }
+
+        // Voiceless consonants: p, k, f, θ, ʃ, s, ʧ -> t
+        if (last is 'p' or 'k' or 'f' or 'θ' or 'ʃ' or 's' or 'ʧ')
+        {
+            return stemIpa + "t";
+        }
+
+        // Voiced consonants and vowels -> d
+        return stemIpa + "d";
+    }
+
+    private static readonly Dictionary<char, string> LetterNames = new()
+    {
+        { 'A', "ˈA" }, { 'B', "bˈi" }, { 'C', "sˈi" }, { 'D', "dˈi" }, { 'E', "ˈi" },
+        { 'F', "ˈɛf" }, { 'G', "ʤˈi" }, { 'H', "ˈAʧ" }, { 'I', "ˈI" }, { 'J', "ʤˈA" },
+        { 'K', "kˈA" }, { 'L', "ˈɛl" }, { 'M', "ˈɛm" }, { 'N', "ˈɛn" }, { 'O', "ˈO" },
+        { 'P', "pˈi" }, { 'Q', "kjˈu" }, { 'R', "ˈɑɹ" }, { 'S', "ˈɛs" }, { 'T', "tˈi" },
+        { 'U', "jˈu" }, { 'V', "vˈi" }, { 'W', "dˈʌbᵊljˌu" }, { 'X', "ˈɛks" }, { 'Y', "wˈI" },
+        { 'Z', "zˈi" }
+    };
+
+    private static string ConvertAcronym(string acronym)
+    {
+        var sb = new StringBuilder();
+        for (int i = 0; i < acronym.Length; i++)
+        {
+            char c = char.ToUpperInvariant(acronym[i]);
+            if (LetterNames.TryGetValue(c, out string? name))
+            {
+                sb.Append(name);
+            }
+        }
+        return sb.ToString();
     }
 
     /// <summary>

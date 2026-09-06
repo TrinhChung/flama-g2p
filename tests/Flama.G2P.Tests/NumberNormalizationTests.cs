@@ -49,4 +49,20 @@ public class NumberNormalizationTests
         string actual = ChineseG2P.NormalizeNumbers(input);
         Assert.Equal(expected, actual);
     }
+
+    [Theory]
+    [InlineData("圆周率是3.14159", "圆周率是三点一四一五九")]
+    [InlineData("胜率达到85%", "胜率达到百分之八十五")]
+    [InlineData("完成1/3的任务", "完成三分之一的任务")]
+    [InlineData("今天是2026年9月6日", "今天是二零二六年九月六日")]
+    [InlineData("现在是15:30", "现在是十五点半")]
+    [InlineData("发车时间是08:05", "发车时间是八点五分")]
+    [InlineData("我有2个苹果和2本书", "我有两个苹果和两本书")]
+    [InlineData("温度是37℃", "温度是三十七摄氏度")]
+    [InlineData("价格是$100", "价格是一百美元")]
+    public void ChineseTextNormalizer_Normalize_HandlesNonStandardWords(string input, string expected)
+    {
+        string actual = ChineseTextNormalizer.Normalize(input);
+        Assert.Equal(expected, actual);
+    }
 }

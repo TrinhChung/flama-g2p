@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using Flama.G2P;
@@ -20,20 +21,44 @@ public class ChineseG2P : IG2P
     private readonly PinyinDictionary _pinyinDict;
     private readonly PhrasePinyinDictionary _phraseDict;
     private readonly IG2P _englishG2p;
+    private readonly ToneSandhi _toneSandhi;
 
-    public ChineseG2P(IG2P? englishG2p = null)
+    public bool IsHighPrecisionMode { get; private set; }
+    public int LexiconWordCount => _phraseDict.Count;
+
+    public ChineseG2P(IG2P? englishG2p = null, string? customDataDir = null)
     {
         _pinyinDict = new PinyinDictionary();
         _phraseDict = new PhrasePinyinDictionary();
         _englishG2p = englishG2p ?? new EnglishG2P();
+        _toneSandhi = new ToneSandhi();
+
+        InitializeLexicon(customDataDir);
+    }
+
+    public void InitializeLexicon(string? customDataDir = null)
+    {
+        string dataDir = customDataDir
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Flama", "Audio", "data", "zh");
+
+        string largePinyinTsv = Path.Combine(dataDir, "large_pinyin.txt");
+        if (File.Exists(largePinyinTsv))
+        {
+            int loaded = _phraseDict.LoadExternalLexicon(largePinyinTsv);
+            IsHighPrecisionMode = loaded > 0;
+        }
+        else
+        {
+            IsHighPrecisionMode = false;
+        }
     }
 
     public string Phonemize(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
-        // 1. Normalize numbers
-        text = NormalizeNumbers(text);
+        // 1. Comprehensive Text Normalization (Decimals, Dates, Times, Percentages, Quantifiers, Integers)
+        text = ChineseTextNormalizer.Normalize(text);
 
         // 2. Map punctuation
         text = MapPunctuation(text);
@@ -49,6 +74,10 @@ public class ChineseG2P : IG2P
 
             if (Regex.IsMatch(segment, @"^[\u4E00-\u9FFF]+$"))
             {
+                if (result.Length > 0 && result[^1] != ' ')
+                {
+                    result.Append(' ');
+                }
                 result.Append(PhonemizeChineseSegment(segment));
             }
             else
@@ -62,86 +91,60 @@ public class ChineseG2P : IG2P
 
     private string PhonemizeChineseSegment(string segment)
     {
-        // 1. Segment using longest phrase dictionary matching, falling back to single characters
-        List<string> pinyins = _phraseDict.SegmentAndGetPinyin(segment, _pinyinDict);
+        // 1. Segment using phrase dictionary matching into word groups
+        List<List<string>> wordGroups = _phraseDict.SegmentAndGetWordPinyin(segment, _pinyinDict);
 
-        // 2. Apply adjacent third-tone sandhi rules
-        ApplyThirdToneSandhi(pinyins);
-
-        // 3. Apply exact-match tone sandhi for 'yi' and 'bu'
-        ApplyYiBuSandhi(pinyins);
-
-        // 4. Convert Pinyin to IPA and apply retone arrows
-        var ipaParts = new List<string>();
-        foreach (string py in pinyins)
+        // 2. Apply word-level neural tones
+        int charIdx = 0;
+        foreach (var group in wordGroups)
         {
-            if (py.Length > 0 && !char.IsLetter(py[0]) && py[0] != 'ü')
+            int len = group.Count;
+            if (charIdx + len <= segment.Length)
             {
-                continue;
+                string word = segment.Substring(charIdx, len);
+                _toneSandhi.ApplyNeuralTone(word, group);
             }
-
-            string ipa = PinyinToIpa.Convert(py);
-            ipa = Retone(ipa);
-            if (!string.IsNullOrEmpty(ipa))
-            {
-                ipaParts.Add(ipa);
-            }
+            charIdx += len;
         }
 
-        return " " + string.Join(" ", ipaParts) + " ";
-    }
-
-    /// <summary>
-    /// Applies third-tone sandhi: when two third-tone syllables are adjacent,
-    /// the first changes to a second tone.
-    /// Note: This is a local adjacent-pair sandhi rule. It does not perform full prosodic word/phrase
-    /// segmentation, so complex multi-word sequences may sometimes differ from actual spoken rhythm.
-    /// </summary>
-    private static void ApplyThirdToneSandhi(List<string> pinyins)
-    {
-        for (int i = 0; i < pinyins.Count - 1; i++)
+        // 3. Flatten pinyins to apply Yi, Bu, and 3rd-tone sandhi across adjacent syllables
+        var flatPinyins = new List<string>();
+        foreach (var group in wordGroups)
         {
-            if (pinyins[i].EndsWith("3") && pinyins[i + 1].EndsWith("3"))
-            {
-                pinyins[i] = pinyins[i][..^1] + "2";
-            }
+            flatPinyins.AddRange(group);
         }
-    }
 
-    /// <summary>
-    /// Applies tone sandhi for "bu4" and "yi1" depending on the tone of the subsequent syllable.
-    /// </summary>
-    private static void ApplyYiBuSandhi(List<string> pinyins)
-    {
-        for (int i = 0; i < pinyins.Count - 1; i++)
+        _toneSandhi.ApplyBuSandhi(segment, flatPinyins);
+        _toneSandhi.ApplyYiSandhi(segment, flatPinyins);
+        _toneSandhi.ApplyThirdToneSandhi(flatPinyins);
+
+        // 4. Reconstruct word groups with updated tone sandhi and convert to IPA
+        int flatIdx = 0;
+        var wordIpas = new List<string>();
+
+        foreach (var group in wordGroups)
         {
-            string current = pinyins[i];
-            string next = pinyins[i + 1];
-
-            if (next.Length > 1 && char.IsDigit(next[^1]))
+            var sbWord = new StringBuilder();
+            for (int k = 0; k < group.Count; k++)
             {
-                char nextTone = next[^1];
-
-                if (current == "bu4")
+                string py = flatPinyins[flatIdx++];
+                if (py.Length > 0 && !char.IsLetter(py[0]) && py[0] != 'ü')
                 {
-                    if (nextTone == '4')
-                    {
-                        pinyins[i] = "bu2";
-                    }
+                    continue;
                 }
-                else if (current == "yi1")
-                {
-                    if (nextTone == '4')
-                    {
-                        pinyins[i] = "yi2";
-                    }
-                    else if (nextTone == '1' || nextTone == '2' || nextTone == '3')
-                    {
-                        pinyins[i] = "yi4";
-                    }
-                }
+
+                string ipa = PinyinToIpa.Convert(py);
+                ipa = Retone(ipa);
+                sbWord.Append(ipa);
+            }
+
+            if (sbWord.Length > 0)
+            {
+                wordIpas.Add(sbWord.ToString());
             }
         }
+
+        return string.Join(" ", wordIpas);
     }
 
     private string PhonemizeNonChineseSegment(string segment)
@@ -308,7 +311,20 @@ public class ChineseG2P : IG2P
 
     private static string CleanOutput(string input)
     {
-        string cleaned = Regex.Replace(input, @"\s+", " ");
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+
+        // 1. Remove whitespace before punctuation marks: , . ! ? : ; ” )
+        string cleaned = Regex.Replace(input, @"\s+([,.:;!?\)""”])", "$1");
+
+        // 2. Remove whitespace after opening punctuation marks: “ (
+        cleaned = Regex.Replace(cleaned, @"([\(“""])\s+", "$1");
+
+        // 3. Ensure single space after punctuation if followed by a non-punctuation char
+        cleaned = Regex.Replace(cleaned, @"([,.:;!?])([^\s,.:;!?])", "$1 $2");
+
+        // 4. Collapse multiple whitespace into a single space
+        cleaned = Regex.Replace(cleaned, @"\s+", " ");
+
         return cleaned.Trim();
     }
 }

@@ -22,7 +22,7 @@ public class ChineseG2PTests
         string ipa = g2p.Phonemize("你好");
 
         Assert.Contains("ni↗", ipa);
-        Assert.Contains("xau̯↓", ipa);
+        Assert.Contains("xau↓", ipa);
     }
 
     [Fact]
@@ -100,5 +100,48 @@ public class ChineseG2PTests
         // We verify that instantiating doesn't throw under normal environment since we embed the resource.
         var dict = new PinyinDictionary();
         Assert.NotNull(dict.GetPinyin('中'));
+    }
+
+    [Fact]
+    public void ChineseG2P_Phonemize_NeutralToneWords_HaveNoToneArrowsOnNeutralSyllable()
+    {
+        var g2p = new ChineseG2P();
+
+        // "东西" (dong1 xi5) -> xi has no tone arrow (5 is neutral)
+        string dongxi = g2p.Phonemize("东西");
+        // dong1 -> tɔ→ŋ, xi5 -> ɕi
+        Assert.Contains("tɔ→ŋɕi", dongxi);
+
+        // "时候" (shi2 hou5) -> hou has no tone arrow
+        string shihou = g2p.Phonemize("时候");
+        // shi2 -> ʂɨ↗, hou5 -> xou
+        Assert.Contains("ʂɨ↗xou", shihou);
+
+        // "得不到" (de5 bu5 dao4) -> potential complement negative
+        string debudao = g2p.Phonemize("得不到");
+        Assert.Contains("tɤputau↘", debudao);
+    }
+
+    [Fact]
+    public void ChineseG2P_Phonemize_PunctuationSpacing_NoSpaceBeforeCommaOrPeriod()
+    {
+        var g2p = new ChineseG2P();
+        string text = "有的孩子，扔东西。";
+        string ipa = g2p.Phonemize(text);
+
+        // Ensure comma and period are attached directly to preceding word, not preceded by space
+        Assert.DoesNotContain(" ,", ipa);
+        Assert.DoesNotContain(" .", ipa);
+        Assert.Contains(",", ipa);
+        Assert.Contains(".", ipa);
+    }
+
+    [Fact]
+    public void ChineseG2P_Phonemize_NoCombiningInvertedBrevePresent()
+    {
+        var g2p = new ChineseG2P();
+        // Diphthongs like 'ai', 'ou', 'ei', 'ao' should not contain \u032F
+        string ipa = g2p.Phonemize("有的孩子在得不到自己想要的东西的时候,会通过哭,扔东西或者故意敲打来引起父母的注意。");
+        Assert.DoesNotContain("\u032F", ipa);
     }
 }

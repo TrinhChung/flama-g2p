@@ -59,15 +59,15 @@ public static class ArpabetToIpa
                     case "AE": sb.Append("æ"); break;
                     case "AH": sb.Append(stress == 0 ? "ə" : "ʌ"); break;
                     case "AO": sb.Append("ɔ"); break;
-                    case "AW": sb.Append("aʊ"); break;
-                    case "AY": sb.Append("aɪ"); break;
+                    case "AW": sb.Append("W"); break;
+                    case "AY": sb.Append("I"); break;
                     case "EH": sb.Append("ɛ"); break;
-                    case "ER": sb.Append(stress == 0 ? "ɚ" : "ɝ"); break;
-                    case "EY": sb.Append("eɪ"); break;
+                    case "ER": sb.Append(stress == 0 ? "əɹ" : "ɜɹ"); break;
+                    case "EY": sb.Append("A"); break;
                     case "IH": sb.Append(stress == 0 ? "ᵻ" : "ɪ"); break;
                     case "IY": sb.Append("i"); break;
-                    case "OW": sb.Append("oʊ"); break;
-                    case "OY": sb.Append("ɔɪ"); break;
+                    case "OW": sb.Append("O"); break;
+                    case "OY": sb.Append("Y"); break;
                     case "UH": sb.Append("ʊ"); break;
                     case "UW": sb.Append("u"); break;
                     default:

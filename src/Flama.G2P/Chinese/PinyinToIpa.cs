@@ -193,7 +193,8 @@ public static class PinyinToIpa
             }
         }
 
-        return initialIpa + finalIpa;
+        string rawIpa = initialIpa + finalIpa;
+        return rawIpa.Replace("\u032F", "");
     }
 
     /// <summary>
