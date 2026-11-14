@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Chinese\pinyin_dict.txt" />
+    <!-- misaki lexicons (Apache-2.0) and g2p_en weights (Apache-2.0); see THIRD_PARTY_NOTICES.md -->
+    <EmbeddedResource Include="English\Data\misaki_*.json.gz" LogicalName="Flama.G2P.English.Data.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="English\Data\g2p_en_checkpoint20.npz" LogicalName="Flama.G2P.English.Data.g2p_en_checkpoint20.npz" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,6 +28,7 @@
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <None Include="..\..\COMMERCIAL_LICENSE.md" Pack="true" PackagePath="\" />
     <None Include="..\..\THIRD_PARTY_NOTICES.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\licenses\Apache-2.0.txt" Pack="true" PackagePath="licenses\" />
   </ItemGroup>
 
 </Project>

@@ -26,7 +26,7 @@ public class EnglishG2PTests
 
         Assert.Equal("həlˈO", hello);
         Assert.Equal("wˈɜɹld", world);
-        Assert.Equal("ɡˈʊd mˈɔɹnᵻŋ", goodMorning);
+        Assert.Equal("ɡˈʊd mˈɔɹnɪŋ", goodMorning);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class EnglishG2PTests
 
         // Plural: apples (stem: apple /æpəl/ + z) -> ˈæpəlz
         string apples = g2p.Phonemize("apples");
-        Assert.Equal("ˈæpəlz", apples);
+        Assert.Equal("ˈæpᵊlz", apples);
 
         // Plural: cars (stem: car /kˈɑɹ/ + z) -> kˈɑɹz
         string cars = g2p.Phonemize("cars");
@@ -113,21 +113,64 @@ public class EnglishG2PTests
     {
         var g2p = new EnglishG2P();
 
-        // AI -> ˈAˈI
-        string ai = g2p.Phonemize("AI");
-        Assert.Equal("ˈAˈI", ai);
+        // misaki gold entry for AI
+        Assert.Equal("ˈAˌI", g2p.Phonemize("AI"));
 
-        // USA -> jˈuˈɛsˈA
-        string usa = g2p.Phonemize("USA");
-        Assert.Equal("jˈuˈɛsˈA", usa);
+        // Spelled acronyms keep primary stress on the last letter only
+        Assert.Equal("jˌuˌɛsˈA", g2p.Phonemize("USA"));
     }
 
     [Fact]
-    public void EnglishG2P_Phonemize_OovBehavior_ReturnOriginalByDefault()
+    public void EnglishG2P_Phonemize_OovBehavior_NeuralByDefault()
     {
-        var g2p = new EnglishG2P(); // default OovStrategy is ReturnOriginal
+        var g2p = new EnglishG2P(); // default OovStrategy is Neural (g2p_en GRU)
         string ipa = g2p.Phonemize("xyzabc");
-        Assert.Equal("xyzabc", ipa);
+        Assert.NotEqual("xyzabc", ipa);
+        Assert.DoesNotContain("x", ipa);
+    }
+
+    [Fact]
+    public void EnglishG2P_Phonemize_OovBehavior_ReturnOriginalWhenRequested()
+    {
+        var g2p = new EnglishG2P(oovStrategy: OovStrategy.ReturnOriginal);
+        Assert.Equal("xyzabc", g2p.Phonemize("xyzabc"));
+    }
+
+    [Fact]
+    public void NeuralG2P_Predict_MatchesUpstreamG2pEnExample()
+    {
+        // g2p_en README: "activationist" -> AE2 K T IH0 V EY1 SH AH0 N IH0 S T
+        Assert.Equal("AE2 K T IH0 V EY1 SH AH0 N IH0 S T", string.Join(' ', NeuralG2P.Default.Predict("activationist")));
+    }
+
+    [Fact]
+    public void EnglishG2P_Phonemize_MisakiFeatures_FlapReducedFunctionWordsHeteronyms()
+    {
+        var g2p = new EnglishG2P();
+        Assert.Equal("wˈɔTəɹ", g2p.Phonemize("water"));            // US flap, Kokoro v1 'T'
+        Assert.Equal("ʌv", g2p.Phonemize("of"));                   // unstressed function word
+        Assert.Contains("tə ɹəkˈɔɹd", g2p.Phonemize("I need to record it"));
+        Assert.Contains("ðə ɹˈɛkəɹd", g2p.Phonemize("the record"));
+        Assert.Contains("jˈust", g2p.Phonemize("I used to live here"));
+        Assert.EndsWith("kˈæn.", g2p.Phonemize("Yes, I can."));
+    }
+
+    [Fact]
+    public void EnglishG2P_Phonemize_British_UsesNonRhoticLexicon()
+    {
+        var g2p = new EnglishG2P(british: true);
+        Assert.Equal("wˈɔːtə", g2p.Phonemize("water"));
+    }
+
+    [Theory]
+    [InlineData("2000", "two thousand")]
+    [InlineData("in 1998.", "in nineteen ninety-eight.")]
+    [InlineData("$1.2 million", "one point two million dollars")]
+    [InlineData("3D", "three D")]
+    [InlineData("2024-01-15", "January fifteenth, twenty twenty-four")]
+    public void EnglishTextNormalizer_Normalize_FixedCases(string input, string expected)
+    {
+        Assert.Equal(expected, EnglishTextNormalizer.Normalize(input));
     }
 
     [Fact]
